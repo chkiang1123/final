@@ -2,16 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro Tessellation Explorer - Undo/Redo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pro Tessellation Explorer - iPad Ready</title>
 <style>
   body { 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
     display: flex; flex-direction: column; align-items: center; 
     background-color: #f0f2f5; margin: 0; padding: 20px; user-select: none;
+    -webkit-user-select: none; /* Prevent text selection on iOS */
+    touch-action: none; /* Prevent browser handling of gestures like pinch-zoom */
   }
-  h2 { color: #333; margin-top: 0; margin-bottom: 5px; }
-  .subtitle { color: #64748b; font-size: 14px; margin-bottom: 15px; }
+  h2 { color: #333; margin-top: 0; margin-bottom: 5px; text-align: center; }
+  .subtitle { color: #64748b; font-size: 14px; margin-bottom: 15px; text-align: center; }
   
   #toolbar { 
     display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; 
@@ -22,11 +24,13 @@
   
   .control-group {
     display: flex; gap: 6px; align-items: center; border-right: 2px solid #e2e8f0; padding-right: 12px;
+    flex-wrap: wrap; justify-content: center;
   }
   .control-group:last-child { border-right: none; padding-right: 0; }
 
   button, select, input { 
-    padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; 
+    padding: 10px 14px; /* Slightly larger targets for touch */
+    border: 1px solid #ccc; border-radius: 6px; 
     cursor: pointer; background: #fff; font-size: 14px; transition: all 0.2s;
   }
   button:hover, select:hover { background: #e2e8f0; }
@@ -40,12 +44,13 @@
   .action-btn.copy { background: #8b5cf6; border-color: #7c3aed; }
   .action-btn.copy:hover { background: #7c3aed; }
   
-  input[type="color"] { padding: 0; width: 36px; height: 36px; border: none; background: none; }
+  input[type="color"] { padding: 0; width: 40px; height: 40px; border: none; background: none; }
   
   /* SVG Canvas Styling */
   svg { 
     background-color: white; border: 2px solid #cbd5e1; border-radius: 8px; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: default; overflow: hidden;
+    max-width: 100%; height: auto; touch-action: none;
   }
   
   .shape { cursor: pointer; stroke: #334155; stroke-width: 2; transition: filter 0.1s; }
@@ -58,7 +63,7 @@
 <body>
 
 <h2>Pro Tessellation Explorer</h2>
-<div class="subtitle">Select, Glue, and Copy shapes to build massive patterns!</div>
+<div class="subtitle">Select, Glue, and Copy shapes to build massive patterns! (iPad Supported)</div>
 
 <div id="toolbar">
   <div class="control-group">
@@ -126,33 +131,25 @@
   // --- UNDO / REDO SYSTEM ---
   let undoStack = [];
   let redoStack = [];
-  let dragStartState = null; // Used to track moves
+  let dragStartState = null;
 
   function saveState() {
-    redoStack = []; // Clear redo history whenever a new action is performed
+    redoStack = []; 
     undoStack.push({
       html: canvas.innerHTML,
       vX: vX, vY: vY, vW: vW, vH: vH
     });
-    // Keep memory light by only saving the last 50 actions
     if (undoStack.length > 50) undoStack.shift(); 
   }
 
   function restoreState(state) {
-    // 1. Restore the HTML and ViewBox coordinates
     canvas.innerHTML = state.html;
     vX = state.vX; vY = state.vY; vW = state.vW; vH = state.vH;
     canvas.setAttribute('viewBox', `${vX} ${vY} ${vW} ${vH}`);
-    
-    // 2. Clear old memory of selected shapes
     selectedElements.clear(); 
     
-    // 3. Re-attach interactivity to the restored shapes!
     Array.from(canvas.querySelectorAll('polygon, g')).forEach(el => {
-      // Re-add the mouse listener
-      el.addEventListener('mousedown', handleShapeInteraction);
-      
-      // If it was highlighted when the snapshot was taken, re-select it
+      attachInteractionListeners(el);
       if (el.classList.contains('selected')) {
          selectedElements.add(el);
       }
@@ -161,34 +158,29 @@
 
   function undo() {
     if (undoStack.length === 0) return;
-    
-    // Save where we are right now into the Redo stack
-    redoStack.push({
-      html: canvas.innerHTML,
-      vX: vX, vY: vY, vW: vW, vH: vH
-    });
-    
-    let previousState = undoStack.pop();
-    restoreState(previousState);
+    redoStack.push({ html: canvas.innerHTML, vX: vX, vY: vY, vW: vW, vH: vH });
+    restoreState(undoStack.pop());
   }
 
   function redo() {
     if (redoStack.length === 0) return;
-    
-    // Save where we are right now into the Undo stack
-    undoStack.push({
-      html: canvas.innerHTML,
-      vX: vX, vY: vY, vW: vW, vH: vH
-    });
-    
-    let nextState = redoStack.pop();
-    restoreState(nextState);
+    undoStack.push({ html: canvas.innerHTML, vX: vX, vY: vY, vW: vW, vH: vH });
+    restoreState(redoStack.pop());
   }
-  // --- END UNDO / REDO ---
 
+  // Helper to attach both mouse and touch events
+  function attachInteractionListeners(el) {
+    el.addEventListener('mousedown', handleShapeInteraction);
+    el.addEventListener('touchstart', handleShapeInteraction, {passive: false});
+  }
+
+  // Updated to handle both mouse and touch events
   function getMousePos(evt) {
     let CTM = canvas.getScreenCTM();
-    return { x: (evt.clientX - CTM.e) / CTM.a, y: (evt.clientY - CTM.f) / CTM.d };
+    // Check if it's a touch event, otherwise use mouse coordinates
+    let clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
+    let clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
+    return { x: (clientX - CTM.e) / CTM.a, y: (clientY - CTM.f) / CTM.d };
   }
 
   function generatePolygonPoints(sides) {
@@ -273,7 +265,7 @@
   }
 
   function addShape() {
-    saveState(); // Snapshot before adding
+    saveState(); 
     
     const sides = parseInt(document.getElementById('shapeSelect').value);
     const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
@@ -286,7 +278,7 @@
     polygon.setAttribute('data-angle', 0);
     
     updateTransform(polygon);
-    polygon.addEventListener('mousedown', handleShapeInteraction);
+    attachInteractionListeners(polygon);
     canvas.appendChild(polygon);
     
     singleSelect(polygon);
@@ -312,6 +304,7 @@
   }
 
   function handleShapeInteraction(evt) {
+    if (evt.type === 'touchstart') evt.preventDefault(); // Prevent scrolling on mobile
     evt.stopPropagation(); 
     let el = evt.currentTarget; 
 
@@ -320,7 +313,7 @@
     }
 
     if (currentMode === 'erase') { 
-      saveState(); // Snapshot before erasing
+      saveState();
       el.remove(); 
       selectedElements.delete(el);
       return; 
@@ -328,7 +321,7 @@
     
     if (currentMode === 'paint') {
       if(evt.target.tagName.toLowerCase() === 'polygon') { 
-        saveState(); // Snapshot before painting
+        saveState(); 
         evt.target.setAttribute("fill", document.getElementById('colorPicker').value); 
       }
       return;
@@ -342,7 +335,6 @@
     if (currentMode === 'move') {
       if (!selectedElements.has(el)) singleSelect(el);
       
-      // Take a snapshot right BEFORE we start dragging
       dragStartState = { html: canvas.innerHTML, vX: vX, vY: vY, vW: vW, vH: vH };
       
       isDragging = true;
@@ -359,7 +351,7 @@
     let elements = Array.from(selectedElements).filter(el => el.parentNode === canvas);
     if (elements.length <= 1) return; 
     
-    saveState(); // Snapshot before grouping
+    saveState(); 
     
     let sumX = 0, sumY = 0;
     elements.forEach(el => {
@@ -386,7 +378,7 @@
     clearSelection();
     selectedElements.add(g);
     updateTransform(g);
-    g.addEventListener('mousedown', handleShapeInteraction);
+    attachInteractionListeners(g);
     canvas.appendChild(g);
     setMode('move');
   }
@@ -395,7 +387,7 @@
     let groups = Array.from(selectedElements).filter(el => el.classList.contains('shape-group'));
     if (groups.length === 0) return;
 
-    saveState(); // Snapshot before ungrouping
+    saveState();
 
     clearSelection();
 
@@ -431,7 +423,7 @@
   function copySelected() {
     if (selectedElements.size === 0) return;
     
-    saveState(); // Snapshot before copying
+    saveState(); 
     
     let newSelection = new Set();
     
@@ -445,11 +437,11 @@
       updateTransform(clone);
       
       if (clone.tagName.toLowerCase() === 'polygon') {
-        clone.addEventListener('mousedown', handleShapeInteraction);
+        attachInteractionListeners(clone);
       } else if (clone.tagName.toLowerCase() === 'g') {
-        clone.addEventListener('mousedown', handleShapeInteraction);
+        attachInteractionListeners(clone);
         Array.from(clone.querySelectorAll('polygon')).forEach(p => {
-          p.addEventListener('mousedown', handleShapeInteraction);
+          attachInteractionListeners(p);
         });
       }
       
@@ -468,7 +460,7 @@
 
   function rotateSelected(degrees) {
     if (selectedElements.size === 0) return;
-    saveState(); // Snapshot before rotating
+    saveState(); 
     
     selectedElements.forEach(el => {
       let currentAngle = parseFloat(el.getAttribute('data-angle')) || 0;
@@ -487,33 +479,34 @@
 
   function clearCanvas() {
     if (canvas.querySelectorAll('.shape').length === 0) return;
-    saveState(); // Snapshot before clearing
+    saveState(); 
     
     Array.from(canvas.querySelectorAll('.shape')).forEach(el => el.remove());
     selectedElements.clear();
   }
 
-  canvas.addEventListener('mousedown', (evt) => {
-    if (evt.target === canvas) {
-      clearSelection();
-    }
-  });
+  // --- CANVAS GLOBAL LISTENERS (Mouse + Touch) ---
+  function handleCanvasDown(evt) {
+    if (evt.target === canvas) clearSelection();
+  }
+  canvas.addEventListener('mousedown', handleCanvasDown);
+  canvas.addEventListener('touchstart', handleCanvasDown, {passive: false});
 
-  canvas.addEventListener('mousemove', (evt) => {
+  function handleCanvasMove(evt) {
     if (isDragging && activeDragElement && currentMode === 'move') {
-      evt.preventDefault();
+      if (evt.type === 'touchmove') evt.preventDefault(); // stop scrolling
       let pos = getMousePos(evt);
       activeDragElement.setAttribute('data-x', pos.x - offset.x);
       activeDragElement.setAttribute('data-y', pos.y - offset.y);
       updateTransform(activeDragElement);
     }
-  });
+  }
+  canvas.addEventListener('mousemove', handleCanvasMove);
+  canvas.addEventListener('touchmove', handleCanvasMove, {passive: false});
 
-  window.addEventListener('mouseup', () => { 
+  function handleCanvasUp(evt) {
     if (isDragging && activeDragElement && currentMode === 'move') {
       checkAndApplySnap(activeDragElement);
-      
-      // If we actually moved something, commit the snapshot we took to the Undo stack
       if (dragStartState && dragStartState.html !== canvas.innerHTML) {
          redoStack = []; 
          undoStack.push(dragStartState);
@@ -523,7 +516,9 @@
     isDragging = false; 
     activeDragElement = null;
     dragStartState = null;
-  });
+  }
+  window.addEventListener('mouseup', handleCanvasUp);
+  window.addEventListener('touchend', handleCanvasUp);
 </script>
 
 </body>
