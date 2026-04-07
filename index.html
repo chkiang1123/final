@@ -3,33 +3,62 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pro Tessellation Explorer - Universal Touch Fix</title>
+<title>Pro Tessellation Explorer - Fixed Screen</title>
 <style>
+  /* 1. LOCK THE ENTIRE PAGE TO THE SCREEN */
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* No scrolling allowed */
+    position: fixed; /* Strictly blocks iOS elastic bouncing */
+    box-sizing: border-box;
+  }
+
   body { 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-    display: flex; flex-direction: column; align-items: center; 
-    background-color: #f0f2f5; margin: 0; padding: 20px; 
-    user-select: none; -webkit-user-select: none; /* Block text selection */
-    touch-action: none; /* Block iPad from trying to swipe the whole page */
+    display: flex; 
+    flex-direction: column; 
+    background-color: #f0f2f5; 
+    user-select: none; 
+    -webkit-user-select: none; 
+    touch-action: none; 
   }
-  h2 { color: #333; margin-top: 0; margin-bottom: 5px; text-align: center; }
-  .subtitle { color: #64748b; font-size: 14px; margin-bottom: 15px; text-align: center; }
   
+  *, *:before, *:after {
+    box-sizing: inherit;
+  }
+
+  /* 2. HEADER AREA */
+  #header-area {
+    padding: 10px 10px 5px 10px;
+    text-align: center;
+    flex-shrink: 0; /* Prevent shrinking */
+  }
+  h2 { color: #333; margin: 0 0 5px 0; font-size: 22px; }
+  .subtitle { color: #64748b; font-size: 13px; margin: 0; }
+  
+  /* 3. TOOLBAR - SCROLLABLE IF TOO MANY BUTTONS */
   #toolbar { 
-    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; 
-    padding: 15px; background: white; border-radius: 8px; 
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 10px auto; 
+    padding: 10px; background: white; border-radius: 8px; 
     box-shadow: 0 4px 6px rgba(0,0,0,0.1); align-items: center; justify-content: center;
     max-width: 1050px;
+    width: 95%;
+    flex-shrink: 0; /* Prevent shrinking */
+    max-height: 25vh; /* Don't let it take over the screen on landscape mode */
+    overflow-y: auto;
   }
   
   .control-group {
-    display: flex; gap: 6px; align-items: center; border-right: 2px solid #e2e8f0; padding-right: 12px;
+    display: flex; gap: 6px; align-items: center; border-right: 2px solid #e2e8f0; padding-right: 8px;
     flex-wrap: wrap; justify-content: center;
   }
   .control-group:last-child { border-right: none; padding-right: 0; }
 
   button, select, input { 
-    padding: 10px 14px; /* Larger targets for iPad fingers */
+    padding: 8px 12px; 
     border: 1px solid #ccc; border-radius: 6px; 
     cursor: pointer; background: #fff; font-size: 14px; transition: all 0.2s;
   }
@@ -43,14 +72,25 @@
   .action-btn.danger:hover { background: #d97706; }
   .action-btn.copy { background: #8b5cf6; border-color: #7c3aed; }
   .action-btn.copy:hover { background: #7c3aed; }
+  input[type="color"] { padding: 0; width: 36px; height: 36px; border: none; background: none; cursor: pointer;}
   
-  input[type="color"] { padding: 0; width: 40px; height: 40px; border: none; background: none; }
-  
-  /* SVG Canvas Styling */
+  /* 4. CANVAS AREA - DYNAMIC SIZING */
+  #canvas-container {
+    flex-grow: 1; /* Takes up ALL remaining vertical space */
+    width: 100%;
+    padding: 0 10px 10px 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 0; /* Required for flexbox to allow shrinking */
+  }
+
   svg { 
+    width: 100%; 
+    height: 100%; 
     background-color: white; border: 2px solid #cbd5e1; border-radius: 8px; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: default; overflow: hidden;
-    max-width: 100%; height: auto; touch-action: none;
+    touch-action: none;
   }
   
   .shape { cursor: pointer; stroke: #334155; stroke-width: 2; transition: filter 0.1s; }
@@ -62,22 +102,20 @@
 </head>
 <body>
 
-<h2>Pro Tessellation Explorer</h2>
-<div class="subtitle">Select, Glue, and Copy shapes to build massive patterns!</div>
+<div id="header-area">
+  <h2>Pro Tessellation Explorer</h2>
+  <div class="subtitle">Select, Glue, and Copy shapes. All locked to one screen!</div>
+</div>
 
 <div id="toolbar">
   <div class="control-group">
     <select id="shapeSelect">
-      <option value="3">Triangle (3)</option>
-      <option value="4">Square (4)</option>
-      <option value="5">Pentagon (5)</option>
-      <option value="6">Hexagon (6)</option>
-      <option value="7">Heptagon (7)</option>
-      <option value="8">Octagon (8)</option>
-      <option value="9">Nonagon (9)</option>
-      <option value="10">Decagon (10)</option>
-      <option value="11">Hendecagon (11)</option>
-      <option value="12">Dodecagon (12)</option>
+      <option value="3">Triangle</option>
+      <option value="4">Square</option>
+      <option value="5">Pentagon</option>
+      <option value="6">Hexagon</option>
+      <option value="8">Octagon</option>
+      <option value="12">Dodecagon</option>
     </select>
     <button onclick="addShape()">➕ Add</button>
   </div>
@@ -97,23 +135,22 @@
   </div>
 
   <div class="control-group">
-    <button onclick="undo()" title="Undo last action">↩️ Undo</button>
-    <button onclick="redo()" title="Redo last action">↪️ Redo</button>
-  </div>
-
-  <div class="control-group">
-    <button onclick="rotateSelected(-15)">↺ 15°</button>
-    <button onclick="rotateSelected(15)">↻ 15°</button>
-    <button onclick="zoomView(0.8)" title="Enlarge Canvas Shapes">🔍+</button>
-    <button onclick="zoomView(1.25)" title="Reduce Canvas Shapes">🔍-</button>
+    <button onclick="undo()" title="Undo">↩️</button>
+    <button onclick="redo()" title="Redo">↪️</button>
+    <button onclick="rotateSelected(-15)">↺</button>
+    <button onclick="rotateSelected(15)">↻</button>
+    <button onclick="zoomView(0.8)">🔍+</button>
+    <button onclick="zoomView(1.25)">🔍-</button>
   </div>
   
   <div class="control-group">
-    <button onclick="clearCanvas()" style="color: #ef4444;">🗑️ Clear</button>
+    <button onclick="clearCanvas()" style="color: #ef4444;">🗑️</button>
   </div>
 </div>
 
-<svg id="canvas" width="900" height="600" viewBox="0 0 900 600"></svg>
+<div id="canvas-container">
+  <svg id="canvas" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
 
 <script>
   const canvas = document.getElementById('canvas');
@@ -146,7 +183,6 @@
     selectedElements.clear(); 
     
     Array.from(canvas.querySelectorAll('polygon, g')).forEach(el => {
-      // Re-attach Pointer Event
       el.addEventListener('pointerdown', handleShapeInteraction);
       if (el.classList.contains('selected')) {
          selectedElements.add(el);
@@ -166,7 +202,7 @@
     restoreState(redoStack.pop());
   }
 
-  // Unified Pointer Event simplifies everything (Mouse + Touch)
+  // Uses getScreenCTM to automatically calculate math no matter how the CSS scales the SVG
   function getMousePos(evt) {
     let CTM = canvas.getScreenCTM();
     return { x: (evt.clientX - CTM.e) / CTM.a, y: (evt.clientY - CTM.f) / CTM.d };
@@ -317,7 +353,7 @@
 
     if (currentMode === 'select') {
       toggleSelection(el);
-      canvas.appendChild(el); // Safe here, no continuous drag event running
+      canvas.appendChild(el);
       return;
     }
 
@@ -329,14 +365,10 @@
       isDragging = true;
       activeDragElement = el;
       
-      // CRITICAL iOS FIX: We DO NOT call canvas.appendChild(el) right here!
-      // Moving DOM elements during an active tap instantly aborts the gesture on mobile.
-      
       let pos = getMousePos(evt);
       offset.x = pos.x - parseFloat(el.getAttribute('data-x'));
       offset.y = pos.y - parseFloat(el.getAttribute('data-y'));
       
-      // Tell browser we are exclusively dragging this right now
       el.setPointerCapture(evt.pointerId);
     }
   }
@@ -481,10 +513,9 @@
     if (evt.target === canvas) clearSelection();
   });
 
-  // Track dragging at the window level, so moving fast off the shape doesn't break it
   window.addEventListener('pointermove', (evt) => {
     if (isDragging && activeDragElement && currentMode === 'move') {
-      evt.preventDefault(); // Stop mobile devices from zooming or scrolling
+      evt.preventDefault();
       let pos = getMousePos(evt);
       activeDragElement.setAttribute('data-x', pos.x - offset.x);
       activeDragElement.setAttribute('data-y', pos.y - offset.y);
@@ -496,7 +527,6 @@
     if (isDragging && activeDragElement && currentMode === 'move') {
       checkAndApplySnap(activeDragElement);
       
-      // CRITICAL iOS FIX: Once finger is lifted, NOW we can safely bump it to front!
       canvas.appendChild(activeDragElement);
 
       if (dragStartState && dragStartState.html !== canvas.innerHTML) {
