@@ -34,7 +34,7 @@
   #header-area {
     padding: 10px 10px 5px 10px;
     text-align: center;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0; 
   }
   h2 { color: #333; margin: 0 0 5px 0; font-size: 22px; }
   .subtitle { color: #64748b; font-size: 13px; margin: 0; }
@@ -46,8 +46,8 @@
     box-shadow: 0 4px 6px rgba(0,0,0,0.1); align-items: center; justify-content: center;
     max-width: 1050px;
     width: 95%;
-    flex-shrink: 0; /* Prevent shrinking */
-    max-height: 25vh; /* Don't let it take over the screen on landscape mode */
+    flex-shrink: 0; 
+    max-height: 25vh; 
     overflow-y: auto;
   }
   
@@ -76,13 +76,13 @@
   
   /* 4. CANVAS AREA - DYNAMIC SIZING */
   #canvas-container {
-    flex-grow: 1; /* Takes up ALL remaining vertical space */
+    flex-grow: 1; 
     width: 100%;
     padding: 0 10px 10px 10px;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 0; /* Required for flexbox to allow shrinking */
+    min-height: 0; 
   }
 
   svg { 
@@ -110,12 +110,16 @@
 <div id="toolbar">
   <div class="control-group">
     <select id="shapeSelect">
-      <option value="3">Triangle</option>
-      <option value="4">Square</option>
-      <option value="5">Pentagon</option>
-      <option value="6">Hexagon</option>
-      <option value="8">Octagon</option>
-      <option value="12">Dodecagon</option>
+      <option value="3">Triangle (3)</option>
+      <option value="4">Quadrilateral (4)</option>
+      <option value="5">Pentagon (5)</option>
+      <option value="6">Hexagon (6)</option>
+      <option value="7">Heptagon (7)</option>
+      <option value="8">Octagon (8)</option>
+      <option value="9">Nonagon (9)</option>
+      <option value="10">Decagon (10)</option>
+      <option value="11">Hendecagon (11)</option>
+      <option value="12">Dodecagon (12)</option>
     </select>
     <button onclick="addShape()">➕ Add</button>
   </div>
@@ -202,7 +206,6 @@
     restoreState(redoStack.pop());
   }
 
-  // Uses getScreenCTM to automatically calculate math no matter how the CSS scales the SVG
   function getMousePos(evt) {
     let CTM = canvas.getScreenCTM();
     return { x: (evt.clientX - CTM.e) / CTM.a, y: (evt.clientY - CTM.f) / CTM.d };
