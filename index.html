@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pro Tessellation Explorer - iPad Ready</title>
+<title>Pro Tessellation Explorer - Universal Touch Fix</title>
 <style>
   body { 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
     display: flex; flex-direction: column; align-items: center; 
-    background-color: #f0f2f5; margin: 0; padding: 20px; user-select: none;
-    -webkit-user-select: none; /* Prevent text selection on iOS */
-    touch-action: none; /* Prevent browser handling of gestures like pinch-zoom */
+    background-color: #f0f2f5; margin: 0; padding: 20px; 
+    user-select: none; -webkit-user-select: none; /* Block text selection */
+    touch-action: none; /* Block iPad from trying to swipe the whole page */
   }
   h2 { color: #333; margin-top: 0; margin-bottom: 5px; text-align: center; }
   .subtitle { color: #64748b; font-size: 14px; margin-bottom: 15px; text-align: center; }
@@ -29,7 +29,7 @@
   .control-group:last-child { border-right: none; padding-right: 0; }
 
   button, select, input { 
-    padding: 10px 14px; /* Slightly larger targets for touch */
+    padding: 10px 14px; /* Larger targets for iPad fingers */
     border: 1px solid #ccc; border-radius: 6px; 
     cursor: pointer; background: #fff; font-size: 14px; transition: all 0.2s;
   }
@@ -63,7 +63,7 @@
 <body>
 
 <h2>Pro Tessellation Explorer</h2>
-<div class="subtitle">Select, Glue, and Copy shapes to build massive patterns! (iPad Supported)</div>
+<div class="subtitle">Select, Glue, and Copy shapes to build massive patterns!</div>
 
 <div id="toolbar">
   <div class="control-group">
@@ -135,10 +135,7 @@
 
   function saveState() {
     redoStack = []; 
-    undoStack.push({
-      html: canvas.innerHTML,
-      vX: vX, vY: vY, vW: vW, vH: vH
-    });
+    undoStack.push({ html: canvas.innerHTML, vX: vX, vY: vY, vW: vW, vH: vH });
     if (undoStack.length > 50) undoStack.shift(); 
   }
 
@@ -149,7 +146,8 @@
     selectedElements.clear(); 
     
     Array.from(canvas.querySelectorAll('polygon, g')).forEach(el => {
-      attachInteractionListeners(el);
+      // Re-attach Pointer Event
+      el.addEventListener('pointerdown', handleShapeInteraction);
       if (el.classList.contains('selected')) {
          selectedElements.add(el);
       }
@@ -168,19 +166,10 @@
     restoreState(redoStack.pop());
   }
 
-  // Helper to attach both mouse and touch events
-  function attachInteractionListeners(el) {
-    el.addEventListener('mousedown', handleShapeInteraction);
-    el.addEventListener('touchstart', handleShapeInteraction, {passive: false});
-  }
-
-  // Updated to handle both mouse and touch events
+  // Unified Pointer Event simplifies everything (Mouse + Touch)
   function getMousePos(evt) {
     let CTM = canvas.getScreenCTM();
-    // Check if it's a touch event, otherwise use mouse coordinates
-    let clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
-    let clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
-    return { x: (clientX - CTM.e) / CTM.a, y: (clientY - CTM.f) / CTM.d };
+    return { x: (evt.clientX - CTM.e) / CTM.a, y: (evt.clientY - CTM.f) / CTM.d };
   }
 
   function generatePolygonPoints(sides) {
@@ -278,7 +267,7 @@
     polygon.setAttribute('data-angle', 0);
     
     updateTransform(polygon);
-    attachInteractionListeners(polygon);
+    polygon.addEventListener('pointerdown', handleShapeInteraction);
     canvas.appendChild(polygon);
     
     singleSelect(polygon);
@@ -304,7 +293,6 @@
   }
 
   function handleShapeInteraction(evt) {
-    if (evt.type === 'touchstart') evt.preventDefault(); // Prevent scrolling on mobile
     evt.stopPropagation(); 
     let el = evt.currentTarget; 
 
@@ -329,6 +317,7 @@
 
     if (currentMode === 'select') {
       toggleSelection(el);
+      canvas.appendChild(el); // Safe here, no continuous drag event running
       return;
     }
 
@@ -339,11 +328,16 @@
       
       isDragging = true;
       activeDragElement = el;
-      canvas.appendChild(el); 
+      
+      // CRITICAL iOS FIX: We DO NOT call canvas.appendChild(el) right here!
+      // Moving DOM elements during an active tap instantly aborts the gesture on mobile.
       
       let pos = getMousePos(evt);
       offset.x = pos.x - parseFloat(el.getAttribute('data-x'));
       offset.y = pos.y - parseFloat(el.getAttribute('data-y'));
+      
+      // Tell browser we are exclusively dragging this right now
+      el.setPointerCapture(evt.pointerId);
     }
   }
 
@@ -378,7 +372,7 @@
     clearSelection();
     selectedElements.add(g);
     updateTransform(g);
-    attachInteractionListeners(g);
+    g.addEventListener('pointerdown', handleShapeInteraction);
     canvas.appendChild(g);
     setMode('move');
   }
@@ -388,7 +382,6 @@
     if (groups.length === 0) return;
 
     saveState();
-
     clearSelection();
 
     groups.forEach(group => {
@@ -424,7 +417,6 @@
     if (selectedElements.size === 0) return;
     
     saveState(); 
-    
     let newSelection = new Set();
     
     selectedElements.forEach(el => {
@@ -437,11 +429,11 @@
       updateTransform(clone);
       
       if (clone.tagName.toLowerCase() === 'polygon') {
-        attachInteractionListeners(clone);
+        clone.addEventListener('pointerdown', handleShapeInteraction);
       } else if (clone.tagName.toLowerCase() === 'g') {
-        attachInteractionListeners(clone);
+        clone.addEventListener('pointerdown', handleShapeInteraction);
         Array.from(clone.querySelectorAll('polygon')).forEach(p => {
-          attachInteractionListeners(p);
+          p.addEventListener('pointerdown', handleShapeInteraction);
         });
       }
       
@@ -480,45 +472,50 @@
   function clearCanvas() {
     if (canvas.querySelectorAll('.shape').length === 0) return;
     saveState(); 
-    
     Array.from(canvas.querySelectorAll('.shape')).forEach(el => el.remove());
     selectedElements.clear();
   }
 
-  // --- CANVAS GLOBAL LISTENERS (Mouse + Touch) ---
-  function handleCanvasDown(evt) {
+  // --- UNIVERSAL POINTER GLOBAL LISTENERS ---
+  canvas.addEventListener('pointerdown', (evt) => {
     if (evt.target === canvas) clearSelection();
-  }
-  canvas.addEventListener('mousedown', handleCanvasDown);
-  canvas.addEventListener('touchstart', handleCanvasDown, {passive: false});
+  });
 
-  function handleCanvasMove(evt) {
+  // Track dragging at the window level, so moving fast off the shape doesn't break it
+  window.addEventListener('pointermove', (evt) => {
     if (isDragging && activeDragElement && currentMode === 'move') {
-      if (evt.type === 'touchmove') evt.preventDefault(); // stop scrolling
+      evt.preventDefault(); // Stop mobile devices from zooming or scrolling
       let pos = getMousePos(evt);
       activeDragElement.setAttribute('data-x', pos.x - offset.x);
       activeDragElement.setAttribute('data-y', pos.y - offset.y);
       updateTransform(activeDragElement);
     }
-  }
-  canvas.addEventListener('mousemove', handleCanvasMove);
-  canvas.addEventListener('touchmove', handleCanvasMove, {passive: false});
+  }, { passive: false });
 
-  function handleCanvasUp(evt) {
+  function endDrag(evt) {
     if (isDragging && activeDragElement && currentMode === 'move') {
       checkAndApplySnap(activeDragElement);
+      
+      // CRITICAL iOS FIX: Once finger is lifted, NOW we can safely bump it to front!
+      canvas.appendChild(activeDragElement);
+
       if (dragStartState && dragStartState.html !== canvas.innerHTML) {
          redoStack = []; 
          undoStack.push(dragStartState);
          if (undoStack.length > 50) undoStack.shift();
+      }
+      
+      if (activeDragElement.hasPointerCapture(evt.pointerId)) {
+        activeDragElement.releasePointerCapture(evt.pointerId);
       }
     }
     isDragging = false; 
     activeDragElement = null;
     dragStartState = null;
   }
-  window.addEventListener('mouseup', handleCanvasUp);
-  window.addEventListener('touchend', handleCanvasUp);
+
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
 </script>
 
 </body>
